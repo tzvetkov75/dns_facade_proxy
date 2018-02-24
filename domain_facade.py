@@ -1,9 +1,30 @@
+#!/usr/bin/python
 # -*- coding: utf-8 -*-
 
 """
-    InterceptResolver - proxy requests to upstream server 
-                        (optionally intercepting)
-        
+    Facade DNS Resolver - proxy requests to upstream server and replaces internal and external domain
+
+    Use Cases:
+
+        - Internal domain needs to be MASKED to some external/outside domain, like
+          Example: external cs.company.com to internal view cs.test123.internal
+
+        - Delegation without dns forwarder, especially in hybrid environment premises and cloud environments
+
+        - Learn and experiment with DNS
+
+
+    Sets the AA flag
+
+    Disclaimer: This is not production script and without any warranty. Furthermore, DNS packet manipulation is NOT the way.
+
+    Recognition: Based on DNSLib (https://pypi.python.org/pypi/dnslib) examples for interceptor and libraries
+
+    License: MIT
+
+    Version: 0.1, 24.02.2018, VTzv
+
+
 """
 from __future__ import print_function
 
@@ -12,19 +33,18 @@ import binascii,copy,socket,struct,sys
 from dnslib import DNSRecord,RR,QTYPE,RCODE,parse_time
 from dnslib.server import DNSServer,DNSHandler,BaseResolver,DNSLogger
 from dnslib.label import DNSLabel
-from dnslib.dns import CNAME
-
+from dnslib.dns import CNAME,SOA
 
 class InterceptResolver(BaseResolver):
 
     """
         Intercepting resolver 
         
-        Proxy requests to upstream server optionally intercepting requests
-        matching local records
+        Proxy requests to upstream server optionally intercepting requests and manipulation the records
+
     """
 
-    def __init__(self,address,port,ttl,intercept,skip,nxdomain, domain_internal, domain_external,timeout=0):
+    def __init__(self,address,port, domain_internal, domain_external,timeout=0):
         """
             address/port    - upstream server
             ttl             - default ttl for intercept records
@@ -35,43 +55,23 @@ class InterceptResolver(BaseResolver):
         """
         self.address = address
         self.port = port
-        self.ttl = parse_time(ttl)
-        self.skip = skip
-        self.nxdomain = nxdomain
         self.timeout = timeout
         self.domain_internal = domain_internal
         self.domain_external = domain_external
-        self.zone = []
-
-        for i in intercept:
-            if i == '-':
-                i = sys.stdin.read()
-            for rr in RR.fromZone(i,ttl=self.ttl):
-                self.zone.append((rr.rname,QTYPE[rr.rtype],rr))
 
     def resolve(self,request,handler):
         reply = request.reply()
         qname = request.q.qname
         qtype = QTYPE[request.q.qtype]
-        # Try to resolve locally unless on skip list
-        if not any([qname.matchGlob(s) for s in self.skip]):
-            for name,rtype,rr in self.zone:
-                if qname.matchGlob(name) and (qtype in (rtype,'ANY','CNAME')):
-                    a = copy.copy(rr)
-                    a.rname = qname
-                    reply.add_answer(a)
-        # Check for NXDOMAIN
-        if any([qname.matchGlob(s) for s in self.nxdomain]):
-            reply.header.rcode = getattr(RCODE,'NXDOMAIN')
-            return reply
-        # Otherwise proxy
+
+        # Proxy to upstream
         if not reply.rr:
             # replace domain if configured
             if qname.matchSuffix(self.domain_external):
                 domain_replaced=True
                 qname_extern =copy.copy(qname)
                 qname.label = qname.stripSuffix(self.domain_external).label + DNSLabel(self.domain_internal).label
-                request.q.qname = qname
+                #request.q.qname = qname
                 print("Domain replaced from:"+ self.domain_external + " to:" + self.domain_internal)
             else:
                 domain_replaced=False
@@ -88,12 +88,23 @@ class InterceptResolver(BaseResolver):
                 reply.header.rcode = getattr(RCODE,'NXDOMAIN')
 
             if domain_replaced:
+                # Revert the  RR record to external domain
                 for r in reply.rr:
                     if r.rname.matchSuffix(self.domain_internal):
                          r.rname.label = r.rname.stripSuffix(self.domain_internal).label + DNSLabel(self.domain_external).label
                     if isinstance(r.rdata,CNAME):
                         if r.rdata.label.matchSuffix(self.domain_internal):
                              r.rdata.label.label = r.rdata.label.stripSuffix(self.domain_internal).label + DNSLabel(self.domain_external).label
+
+                # Change the AUTH record to external domain
+                for r in reply.auth:
+                    if r.rname.matchSuffix(self.domain_internal):
+                         r.rname.label = r.rname.stripSuffix(self.domain_internal).label + DNSLabel(self.domain_external).label
+                    if isinstance(r.rdata,SOA):
+                        if r.rdata.mname.matchSuffix(self.domain_internal):
+                             r.rdata.mname.label = r.rdata.mname.stripSuffix(self.domain_internal).label + DNSLabel(self.domain_external).label
+                        if r.rdata.rname.matchSuffix(self.domain_internal):
+                             r.rdata.rname.label = r.rdata.rname.stripSuffix(self.domain_internal).label + DNSLabel(self.domain_external).label
 
                 reply.q.qname = qname_extern
                 reply.header.aa = 1
@@ -105,42 +116,34 @@ if __name__ == '__main__':
 
     import argparse,sys,time
 
-    p = argparse.ArgumentParser(description="DNS Intercept Proxy")
+    p = argparse.ArgumentParser(description="DNS Facade resolver")
 
     p.add_argument("--port","-p",type=int,default=53,
                     metavar="<port>",
                     help="Local proxy port (default:53)")
+
     p.add_argument("--address","-a",default="",
                     metavar="<address>",
                     help="Local proxy listen address (default:all)")
+
     p.add_argument("--upstream","-u",default="8.8.8.8:53",
             metavar="<dns server:port>",
                     help="Upstream DNS server:port (default:8.8.8.8:53)")
+
     p.add_argument("--tcp",action='store_true',default=False,
                     help="TCP proxy (default: UDP only)")
-    p.add_argument("--intercept","-i",action="append",
-                    metavar="<zone record>",
-                    help="Intercept requests matching zone record (glob) ('-' for stdin)")
-    p.add_argument("--skip","-s",action="append",
-                    metavar="<label>",
-                    help="Don't intercept matching label (glob)")
-    p.add_argument("--nxdomain","-x",action="append",
-                    metavar="<label>",
-                    help="Return NXDOMAIN (glob)")
-    p.add_argument("--ttl","-t",default="60s",
-                    metavar="<ttl>",
-                    help="Intercept TTL (default: 60s)")
+
     p.add_argument("--timeout","-o",type=float,default=5,
                     metavar="<timeout>",
                     help="Upstream timeout (default: 5s)")
 
     p.add_argument("--replace_domain_internal", default="",
                      metavar="<domain_source>",
-                     help="domain to be replaced")
+                     help="internal domain to be replaced")
 
     p.add_argument("--replace_domain_external", default="",
                      metavar="<domain_destination>",
-                     help="target domain to replace")
+                     help="external target domain ")
 
 
     p.add_argument("--log",default="request,reply,truncated,error",
@@ -155,10 +158,6 @@ if __name__ == '__main__':
 
     resolver = InterceptResolver(args.dns,
                                  args.dns_port,
-                                 args.ttl,
-                                 args.intercept or [],
-                                 args.skip or [],
-                                 args.nxdomain or [],
                                  args.replace_domain_internal,
                                  args.replace_domain_external,
                                  args.timeout)
@@ -170,12 +169,6 @@ if __name__ == '__main__':
                         args.dns,args.dns_port,
                         "UDP/TCP" if args.tcp else "UDP"))
 
-    for rr in resolver.zone:
-        print("    | ",rr[2].toZone(),sep="")
-    if resolver.nxdomain:
-        print("    NXDOMAIN:",", ".join(resolver.nxdomain))
-    if resolver.skip:
-        print("    Skipping:",", ".join(resolver.skip))
     print()
 
 
