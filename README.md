@@ -28,7 +28,9 @@ One way to install and run can be using __pipenv__ or directly as show down
 ### Run
 You need to be root (or use sudo) to bind to port 53
 ```
-python domain_facade.py --replace_domain_external myexternal.com --replace_domain_internal myinternal.com -p 53 -u 123.123.123.123:53
+python domain_facade.py --replace_domain_external myexternal.com \
+	--replace_domain_internal myinternal.com \
+	-p 53 -u 123.123.123.123:53
 ```
 __Parameters__
 ```
