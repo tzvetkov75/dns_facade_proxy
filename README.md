@@ -6,10 +6,10 @@ Facade DNS Resolver with intercepting functionality
 - sets AA flag
 
 ## Use Cases
-   - Internal domain needs to be MASKED to some external/outside domain, like
-       Example: external _cs.company.com_ to internal view _cs.test123.internal)
-    - Delegation without DNS forwarder, especially in hybrid environment premises and cloud environments
-    - Learn and experiment with DNS
+   - Internal domain needs to be MASKed to some external/outside domain, like
+       Example: external _cs.company.com_ to internal view _cs.test123.internal_
+   - Delegation without DNS forwarder, especially in hybrid environment premises and cloud environments
+   - Learn and experiment with DNS
 ## Architecture
 Facade resolver is stateless: without any DB or dynamic zone transfer, file sync. The requests and replies are manipulated on the fly; exchanging external and internal domain names (RR, Auth, Questions section). Only one internal and one external domain are supported in one to one mapping. If you need more domains you need to start more server.
 On timeout of the upstream DNS is responses with NXDOMAIN or goes in timeout.
@@ -63,3 +63,10 @@ optional arguments:
 
 ```
 
+## License 
+	GPL 3.0
+
+## Version 
+
+	0.1, 24.02.2018, Tzvetkov75
+0
