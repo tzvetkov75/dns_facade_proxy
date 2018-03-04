@@ -20,9 +20,9 @@
 
     Recognition: Based on DNSLib (https://pypi.python.org/pypi/dnslib) examples for interceptor and libraries
 
-    License: MIT
+    License: GPL 3.0
 
-    Version: 0.1, 24.02.2018, VTzv
+    Version: 0.2, 03.03.2018, VTzv
 
 
 """
@@ -44,20 +44,22 @@ class InterceptResolver(BaseResolver):
 
     """
 
-    def __init__(self,address,port, domain_internal, domain_external,timeout=0):
+    def __init__(self,address,port, domain_internal, domain_external, set_aa_flag_domain, timeout=0):
         """
-            address/port    - upstream server
-            ttl             - default ttl for intercept records
-            intercept       - list of wildcard RRs to respond to (zone format)
-            skip            - list of wildcard labels to skip 
-            nxdomain        - list of wildcard labels to retudn NXDOMAIN
-            timeout         - timeout for upstream server
+            address/port       - upstream server
+            ttl                - default ttl for intercept records
+            intercept          - list of wildcard RRs to respond to (zone format)
+            domain_insterla    - the internal domain that will be changed to external 
+            domain_external    - the external domain to represent and exchange the external domain
+            set_aa_flag_domain - set the AA flag for certain domain
+            timeout            - timeout for upstream server
         """
         self.address = address
         self.port = port
         self.timeout = timeout
         self.domain_internal = domain_internal
         self.domain_external = domain_external
+        self.set_aa_flag_domain = set_aa_flag_domain
 
     def resolve(self,request,handler):
         reply = request.reply()
@@ -108,7 +110,12 @@ class InterceptResolver(BaseResolver):
 
                 reply.q.qname = qname_extern
                 reply.header.aa = 1
-                #print(reply)
+
+            # set AA flag if needed 
+            if qname.matchSuffix(self.set_aa_flag_domain):
+                reply.header.aa = 1
+                
+            #print(reply)
 
         return reply
 
@@ -142,9 +149,12 @@ if __name__ == '__main__':
                      help="internal domain to be replaced")
 
     p.add_argument("--replace_domain_external", default="",
-                     metavar="<domain_destination>",
+                     metavar="<domain_external>",
                      help="external target domain ")
 
+    p.add_argument("--set_aa_flag_domain", default="",
+                     metavar="<domain_aa_flag_domain>",
+                     help="set AA flag for domain ")
 
     p.add_argument("--log",default="request,reply,truncated,error",
                     help="Log hooks to enable (default: +request,+reply,+truncated,+error,-recv,-send,-data)")
@@ -160,6 +170,7 @@ if __name__ == '__main__':
                                  args.dns_port,
                                  args.replace_domain_internal,
                                  args.replace_domain_external,
+                                 args.set_aa_flag_domain,
                                  args.timeout)
 
     logger = DNSLogger(args.log,args.log_prefix)
@@ -167,7 +178,10 @@ if __name__ == '__main__':
     print("Starting Intercept Proxy (%s:%d -> %s:%d) [%s]" % (
                         args.address or "*",args.port,
                         args.dns,args.dns_port,
-                        "UDP/TCP" if args.tcp else "UDP"))
+                        "UDP/TCP" if args.tcp else "UDP"),
+                        "Internal domain:", args.replace_domain_internal,
+                        "Exterbal domain:", args.replace_domain_external,
+                        "Set AA for domain:", args.set_aa_flag_domain)
 
     print()
 

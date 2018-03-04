@@ -27,9 +27,18 @@ One way to install and run can be using __pipenv__ or directly as show down
 ```
 ### Run
 You need to be root (or use sudo) to bind to port 53
+
+#### Example exchnage internal and external domain
+Adapt the command line values to your enviroment 
 ```
 python domain_facade.py --replace_domain_external myexternal.com \
 	--replace_domain_internal myinternal.com \
+	-p 53 -u 123.123.123.123:53
+```
+#### Example set AA flag only
+Adapt the command line values to your enviroment 
+```
+python domain_facade.py --set_aa_flag_domain private.com \
 	-p 53 -u 123.123.123.123:53
 ```
 __Parameters__
@@ -70,4 +79,4 @@ optional arguments:
 
 ## Version 
 
-	0.1, 24.02.2018, Tzvetkov75
+	0.2, 03.03.2018, Tzvetkov75
