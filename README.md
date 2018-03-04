@@ -1,4 +1,4 @@
-# DNS Facade resolver
+﻿# DNS Facade resolver
 
 Facade DNS Resolver with intercepting functionality
 - replaces internal domain to external domain and vice versa
@@ -19,16 +19,31 @@ This is not production script and without any warranty. Furthermore, DNS packet 
 
 ## Recognition
 Based on DNSLib (https://pypi.python.org/pypi/dnslib) examples for interceptor and library usage
+## Docker image
+You can use the script natively, see next chapter or build docker image. 
+### Build image
+Build docker image using provided Dockerfile
+```
+docker build . -t domain_facade
+```
+The output is local image called domain_facade. 
+I uploaded image on docker hub at https://hub.docker.com/r/tzvetkov75/domain_facade/ Please rebuild for latest image updates
+### Run docker 
+Use run image and provide scripts parameters, like 
+```
+docker run -it dns-facade python domain_facade.py --set_aa_flag_domain example.com
+```
+See more examples down
 ## Installation and running
 ### Install dependencies
-One way to install and run can be using __pipenv__ or directly as show down
+One way to install and run can be using __pipenv__ or directly as show down *probably you will need sudo)
 ```python
  pip install dnslib
 ```
 ### Run
 You need to be root (or use sudo) to bind to port 53
 
-#### Example exchnage internal and external domain
+#### Example echage internal and external domain
 Adapt the command line values to your enviroment 
 ```
 python domain_facade.py --replace_domain_external myexternal.com \
@@ -74,9 +89,10 @@ optional arguments:
 
 ```
 
+
 ## License 
 	GPL 3.0
 
 ## Version 
 
-	0.2, 03.03.2018, Tzvetkov75
+	0.3, 04.03.2018, Tzvetkov75
